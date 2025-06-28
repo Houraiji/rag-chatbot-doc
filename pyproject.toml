@@ -1,0 +1,38 @@
+[project]
+name = "rag-smartchat"
+version = "0.1.0"
+description = "智能文档问答系统，支持多轮对话记忆和混合检索策略"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "langchain>=0.0.267",
+    "langchain-community>=0.0.10",
+    "langchain-openai>=0.0.2",
+    "openai>=1.0.0",
+    "chromadb>=0.4.15",
+    "redis>=4.6.0",
+    "python-multipart>=0.0.6",
+    "sentence-transformers>=2.2.2",
+    "pypdf>=3.15.1",
+    "tiktoken>=0.4.0",
+    "pydantic>=2.4.2",
+    "python-dotenv>=1.0.0",
+    "pytest>=8.4.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.3.1",
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
