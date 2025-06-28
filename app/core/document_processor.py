@@ -1,55 +1,111 @@
 import os
 from typing import Dict, List, Optional
+from pypdf import PdfReader
+from langchain_community.vectorstores.chroma import Chroma  # 更新 Chroma 导入
+from langchain_openai import OpenAIEmbeddings  # 更新 OpenAIEmbeddings 导入
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document  # 更新 Document 导入
 
 class DocumentProcessor:
-    """简单的文档处理器"""
+    """文档处理器，支持文本和PDF文件"""
     
-    def __init__(self, upload_dir: str):
+    def __init__(self, upload_dir: str, index_dir: str, openai_api_key: str, openai_api_base: str):
         self.upload_dir = upload_dir
-        self.documents: Dict[str, str] = {}  # file_id -> content
+        self.index_dir = index_dir
         
-    def process_file(self, file_id: str, file_path: str) -> bool:
-        """处理文件，提取文本内容
+        # 文本分割器
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            separators=["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
+        )
         
-        Args:
-            file_id: 文件ID
-            file_path: 文件路径
-            
-        Returns:
-            bool: 是否处理成功
-        """
+        # 向量存储
+        self.embeddings = OpenAIEmbeddings(
+            openai_api_key=openai_api_key,
+            openai_api_base=openai_api_base
+        )
+        
+        # 初始化或加载向量存储
         try:
-            # 简单起见，先只处理文本文件
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            self.documents[file_id] = content
+            if os.path.exists(index_dir):
+                self.vector_store = Chroma(
+                    persist_directory=index_dir,
+                    embedding_function=self.embeddings
+                )
+            else:
+                self.vector_store = Chroma.from_documents(
+                    documents=[],  # 初始化空文档列表
+                    embedding=self.embeddings,
+                    persist_directory=index_dir
+                )
+        except Exception as e:
+            print(f"初始化向量存储失败: {str(e)}")
+            raise
+    
+    def process_file(self, file_id: str, file_path: str) -> bool:
+        """处理文件，提取文本并创建向量索引"""
+        try:
+            # 根据文件类型选择不同的处理方法
+            file_ext = os.path.splitext(file_path)[1].lower()
+            
+            if file_ext == '.pdf':
+                text = self._process_pdf(file_path)
+            else:  # .txt, .md, .csv
+                text = self._process_text(file_path)
+            
+            # 分割文本
+            chunks = self.text_splitter.split_text(text)
+            
+            # 创建文档对象
+            documents = [
+                Document(
+                    page_content=chunk,
+                    metadata={
+                        "file_id": file_id,
+                        "file_path": file_path,
+                        "chunk_id": i
+                    }
+                ) for i, chunk in enumerate(chunks)
+            ]
+            
+            # 添加到向量存储
+            self.vector_store.add_documents(documents)
+            
             return True
+            
         except Exception as e:
             print(f"处理文件失败: {str(e)}")
             return False
+    
+    def _process_pdf(self, file_path: str) -> str:
+        """处理PDF文件"""
+        reader = PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n\n"
+        return text
+    
+    def _process_text(self, file_path: str) -> str:
+        """处理文本文件"""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    
+    def search_documents(self, query: str, top_k: int = 2) -> List[Dict]:
+        """搜索相关文档"""
+        try:
+            # 使用向量存储搜索
+            results = self.vector_store.similarity_search_with_score(
+                query=query,
+                k=top_k
+            )
             
-    def search_documents(self, query: str) -> List[Dict[str, str]]:
-        """搜索文档
-        
-        Args:
-            query: 查询文本
+            return [{
+                "content": doc.page_content,
+                "metadata": doc.metadata,
+                "score": score
+            } for doc, score in results]
             
-        Returns:
-            List[Dict[str, str]]: 匹配的文档片段列表
-        """
-        results = []
-        for file_id, content in self.documents.items():
-            # 简单的文本匹配
-            if query.lower() in content.lower():
-                # 找到匹配位置的上下文
-                start = max(0, content.lower().find(query.lower()) - 100)
-                end = min(len(content), start + 300)
-                context = content[start:end]
-                
-                results.append({
-                    "file_id": file_id,
-                    "context": context,
-                    "score": 1.0  # 简单起见，先使用固定分数
-                })
-        
-        return results
+        except Exception as e:
+            print(f"搜索失败: {str(e)}")
+            return []

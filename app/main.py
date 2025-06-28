@@ -3,20 +3,24 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import uuid
 from typing import List, Optional
+from openai import OpenAI
 
 from app.models.schemas import UploadResponse, ErrorResponse
 from app.core.document_processor import DocumentProcessor
+from app.core.config import (
+    UPLOAD_DIR, 
+    INDEX_DIR, 
+    OPENAI_API_KEY,
+    OPENAI_API_BASE,
+    OPENAI_MODEL,
+    ALLOWED_EXTENSIONS
+)
 
-# 允许的文件类型
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".csv"}
-
-# 创建上传文件的目录路径
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "uploads")
 
 # 创建 FastAPI 应用实例
 app = FastAPI(
     title="智能文档问答系统",
-    description="一个简单的文档问答系统"
+    description="基于 OpenAI 和向量检索的文档问答系统"
 )
 
 # 允许跨域请求
@@ -28,13 +32,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 确保上传文件的目录存在
+# 确保必要的目录存在
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(INDEX_DIR, exist_ok=True)
 
 # 创建文档处理器实例
-doc_processor = DocumentProcessor(UPLOAD_DIR)
+doc_processor = DocumentProcessor(UPLOAD_DIR, INDEX_DIR, OPENAI_API_KEY, OPENAI_API_BASE)
 
-@app.post("/upload", response_model=UploadResponse, responses={400: {"model": ErrorResponse}})
+# 创建 OpenAI 客户端
+openai_client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url=OPENAI_API_BASE  # 添加 base_url 配置
+)
+
+@app.get("/")
+async def root():
+    """根路由"""
+    return {"message": "欢迎使用智能文档问答系统！"}
+
+@app.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
     """文件上传接口"""
     try:
@@ -66,8 +82,6 @@ async def upload_file(file: UploadFile = File(...)):
         else:
             raise HTTPException(status_code=500, detail="文件处理失败")
             
-    except HTTPException as e:
-        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
 
@@ -85,17 +99,34 @@ async def ask_question(question: str):
                 "sources": []
             }
         
-        # 简单起见，直接返回找到的上下文
+        # 构建 prompt
+        context = "\n\n".join([r["content"] for r in results])
+        messages = [
+            {"role": "system", "content": "你是一个专业的助手，请基于提供的上下文回答用户的问题。如果问题无法从上下文中得到答案，请说明。"},
+            {"role": "user", "content": f"基于以下上下文回答问题：\n\n{context}\n\n问题：{question}"}
+        ]
+        
+        # 调用 OpenAI 生成回答
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=500
+        )
+        
         return {
             "question": question,
-            "answer": f"找到以下相关内容：\n\n{results[0]['context']}",
-            "sources": [{"file_id": r["file_id"], "score": r["score"]} for r in results]
+            "answer": response.choices[0].message.content,
+            "sources": [{
+                "content": r["content"],
+                "file_id": r["metadata"]["file_id"],
+                "score": r["score"]
+            } for r in results]
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
-# 新增：获取已上传文件列表
 @app.get("/files")
 async def list_files():
     """获取已上传的文件列表"""
