@@ -9,7 +9,6 @@
 - **多轮对话记忆**：基于Redis实现的对话历史记忆，支持多会话隔离
 - **自动摘要**：自动摘要长对话历史，减少token消耗
 - **异步处理**：采用异步处理管道，优先查询缓存再触发RAG检索
-- **高性能**：系统响应时间P99控制在1.2秒以内
 
 ## 系统架构
 
@@ -35,38 +34,8 @@
                          +-------------------+
 ```
 
-## 快速开始
 
-### 环境要求
-
-- Python 3.8+
-- Redis
-
-### 安装
-
-1. 克隆仓库
-
-```bash
-git clone https://github.com/yourusername/rag-smartchat.git
-cd rag-smartchat
-```
-
-2. 创建虚拟环境
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# 或
-.venv\Scripts\activate  # Windows
-```
-
-3. 安装依赖
-
-```bash
-pip install -e .
-```
-
-4. 配置环境变量
+配置环境变量
 
 ```bash
 cp .env.example .env
