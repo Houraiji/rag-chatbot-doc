@@ -1,8 +1,7 @@
 from typing import Dict, List, Any, Optional
 from langchain_core.runnables import RunnableWithMessageHistory, RunnablePassthrough
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.chat_history import InMemoryChatMessageHistory
@@ -27,8 +26,9 @@ class QAChain:
 
         # 创建提示模板
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", "你是一个专业的助手，请基于提供的上下文回答用户的问题。如果问题无法从上下文中得到答案，请说明。"),
-            ("human", "我需要你回答关于以下内容的问题:\n\n上下文: {context}\n\n问题: {question}")
+            ("system", "你是一个专业的助手，请基于对话历史和提供的上下文(如果存在的话)回答用户的问题。如果问题无法从上下文中得到答案，请说明。"),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "我需要你回答关于以下内容的问题:\n\n上下文: {context}\n\n问题: {question}"),
         ])
 
         # 格式上下文
@@ -39,7 +39,8 @@ class QAChain:
         self.rag_chain = (
             {
                 "context": lambda x: _format_docs(x["documents"]),
-                "question": lambda x: x["question"]
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x["chat_history"]
             }
             | self.prompt
             | self.llm
@@ -49,7 +50,7 @@ class QAChain:
         # 创建带消息历史的可运行对象
         self.qa_with_history = RunnableWithMessageHistory(
             self.rag_chain,
-            self._get_session_history,
+            get_session_history=self._get_session_history, # 指明get_session_history
             input_messages_key="question",
             history_messages_key="chat_history"
         )
