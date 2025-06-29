@@ -1,25 +1,30 @@
 # RAG-SmartChat
 
-RAG-SmartChat 是一个基于检索增强生成（Retrieval-Augmented Generation, RAG）技术的智能文档问答系统，支持多轮对话和混合检索策略。
+RAG-SmartChat 是一个基于 LangChain 0.3 构建的检索增强生成（Retrieval-Augmented Generation, RAG）智能文档问答系统，支持多轮对话记忆和混合检索策略。
 
 ## 项目简介
 
-该系统允许用户上传文档（如 PDF、TXT 等），然后针对这些文档进行提问。系统会使用向量检索技术找到最相关的文档片段，并结合大语言模型生成准确的回答。
+该系统允许用户上传文档，然后针对这些文档进行提问。系统使用 LangChain 的向量检索技术找到最相关的文档片段，并结合大语言模型生成准确的回答。
 
 ### 主要特点
 
+- **基于 LangChain 0.3**：使用最新的 LangChain API 和组件构建
 - **文档处理**：支持 PDF、TXT、MD、CSV 等多种文件格式
-- **向量检索**：使用 Chroma 向量数据库存储和检索文档片段
-- **智能问答**：基于 OpenAI 模型生成高质量回答
-- **多轮对话**：支持上下文相关的多轮对话
+- **向量检索**：使用 LangChain 的检索器接口和 Chroma 向量数据库
+- **智能问答**：基于 LCEL（LangChain Expression Language）构建的 RAG 链
+- **多轮对话**：使用 `RunnableWithMessageHistory` 实现对话记忆
 - **会话管理**：创建、查询、清除和删除会话
 
 ## 技术栈
 
 - **后端框架**：FastAPI
-- **向量存储**：Chroma
+- **LangChain**：使用 LangChain 0.3+ 及其组件
+  - `langchain_core`：核心组件和接口
+  - `langchain_chroma`：向量存储
+  - `langchain_openai`：OpenAI 集成
+  - `langchain_community`：文档加载器
 - **大语言模型**：OpenAI API
-- **文档处理**：LangChain、PyPDF
+- **文档加载**：LangChain 文档加载器
 - **向量嵌入**：OpenAI Embeddings
 
 ## 安装与配置
@@ -58,7 +63,6 @@ cp .env.example .env
 
 5. 编辑 `.env` 文件，设置 OpenAI API 密钥和其他配置
 
-
 ### 目录结构
 
 ```
@@ -66,8 +70,10 @@ rag-smartchat/
 ├── app/ # 应用代码
 │ ├── api/ # API 接口
 │ ├── core/ # 核心功能
+│ │ ├── config.py # 配置
+│ │ ├── retriever.py # 文档检索器
+│ │ └── qa.py # 问答链
 │ ├── models/ # 数据模型
-│ ├── utils/ # 工具函数
 │ └── main.py # 主程序入口
 ├── data/ # 数据目录
 │ ├── index/ # 向量索引
@@ -78,5 +84,15 @@ rag-smartchat/
 ├── pyproject.toml # 项目配置
 ├── setup.py # 安装配置
 └── README.md # 项目说明
-
 ```
+
+## 使用方法
+
+### 启动服务
+
+```bash
+cd rag-smartchat
+uvicorn app.main:app --reload
+```
+
+服务将在 http://127.0.0.1:8000 启动，API 文档可访问 http://127.0.0.1:8000/docs
